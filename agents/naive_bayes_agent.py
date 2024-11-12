@@ -1,89 +1,78 @@
 # agents/naive_bayes_agent.py
-import torch
+import bnlearn as bn
+import pandas as pd
+from sklearn.metrics import accuracy_score
 
 class NaiveBayesAgent:
-    """Implementation of a Multinomial Naive Bayes classifier."""
-    def __init__(self, num_features, num_classes):
+    """Implementazione di un classificatore Naive Bayes utilizzando bnlearn."""
+    def __init__(self, target_variable, feature_names):
         """
-        Initialize the NaiveBayesAgent with the specified parameters.
+        Inizializza il NaiveBayesAgent con la variabile target e le feature.
 
         Args:
-            num_features (int): Number of features in the dataset.
-            num_classes (int): Number of target classes.
+            target_variable (str): Nome della variabile target.
+            feature_names (list): Lista dei nomi delle feature.
         """
-        self.num_classes = num_classes
-        self.num_features = num_features
-        self.class_log_prior = torch.zeros(num_classes)
-        self.feature_log_prob = torch.zeros(num_classes, num_features)  # Dimensions: classes x features
+        self.target_variable = target_variable
+        self.feature_names = feature_names
 
-    def fit(self, X, y):
+        # Creazione del DAG per Naive Bayes
+        edges = []
+        for feature in self.feature_names:
+            edges.append((self.target_variable, feature))
+        self.model = bn.make_DAG(edges)
+
+    def train(self, train_data):
         """
-        Train the Naive Bayes model on the provided data.
+        Addestra il modello Naive Bayes sui dati forniti.
 
         Args:
-            X (torch.Tensor): Input data tensor of shape (num_samples, num_features).
-            y (torch.Tensor): Label tensor of shape (num_samples).
+            train_data (pd.DataFrame): Dataset di addestramento contenente la variabile target e le feature.
         """
-        # Ensure the data is of type float
-        X = X.float()
-        y = y.long()
+        # Assicurati che tutte le colonne siano di tipo 'category'
+        for col in train_data.columns:
+            if not pd.api.types.is_categorical_dtype(train_data[col]):
+                train_data[col] = train_data[col].astype('category')
 
-        # Compute class log priors
-        class_counts = torch.bincount(y, minlength=self.num_classes)
-        total_count = y.size(0)
-        self.class_log_prior = torch.log(class_counts.float() / total_count)
+        # Addestra il modello
+        self.model = bn.parameter_learning.fit(self.model, train_data)
 
-        # Initialize feature counts for each class
-        feature_counts = torch.zeros(self.num_classes, self.num_features)
-
-        for c in range(self.num_classes):
-            X_c = X[y == c]
-            feature_counts[c, :] = X_c.sum(axis=0)
-
-        # Apply Laplace Smoothing
-        smoothed_fc = feature_counts + 1  # Laplace Smoothing with alpha=1
-        smoothed_cc = smoothed_fc.sum(axis=1, keepdims=True) + self.num_features
-
-        # Compute log probabilities of features given classes
-        self.feature_log_prob = torch.log(smoothed_fc) - torch.log(smoothed_cc)
-
-    def predict_log_proba(self, X):
+    def predict(self, X_test):
         """
-        Compute the log probabilities for each class given X.
+        Predice le classi per i dati di input X_test.
 
         Args:
-            X (torch.Tensor): Input data tensor of shape (num_samples, num_features).
+            X_test (pd.DataFrame): Dataset di test contenente le feature.
 
         Returns:
-            torch.Tensor: Log probabilities tensor of shape (num_samples, num_classes).
+            list: Lista delle predizioni.
         """
-        X = X.float()
-        return X @ self.feature_log_prob.t() + self.class_log_prior
-
-    def predict(self, X):
-        """
-        Predict the classes for the input data X.
-
-        Args:
-            X (torch.Tensor): Input data tensor.
-
-        Returns:
-            torch.Tensor: Predicted class labels tensor.
-        """
-        log_probs = self.predict_log_proba(X)
-        return torch.argmax(log_probs, dim=1)
+        y_pred = []
+        for _, row in X_test.iterrows():
+            evidence = row.to_dict()
+            # Esegui l'inferenza per trovare la classe con la probabilità massima
+            query_result = bn.inference.fit(
+                self.model,
+                variables=[self.target_variable],
+                evidence=evidence,
+                verbose=0
+            )
+            max_prob_idx = query_result.df['p'].idxmax()
+            max_prob_class = query_result.df.loc[max_prob_idx][self.target_variable]
+            y_pred.append(max_prob_class)
+        return y_pred
 
     def evaluate(self, X_test, y_test):
         """
-        Evaluate the model on the test data.
+        Valuta il modello sui dati di test.
 
         Args:
-            X_test (torch.Tensor): Test data.
-            y_test (torch.Tensor): Test labels.
+            X_test (pd.DataFrame): Dati di test.
+            y_test (pd.Series or list): Etichette di test.
 
         Returns:
-            float: Model accuracy.
+            float: Accuratezza del modello.
         """
         y_pred = self.predict(X_test)
-        accuracy = (y_pred == y_test).float().mean().item()
-        return accuracy
+        accuracy = accuracy_score(y_test, y_pred)
+        return accuracy, y_pred

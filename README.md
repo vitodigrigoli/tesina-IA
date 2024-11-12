@@ -125,7 +125,7 @@ Dopo aver eseguito l'addestramento e la valutazione dei modelli, sono stati otte
 
 1.  **Naive Bayes**
 
-    -   **Accuratezza:** 31.50%
+    -   **Accuratezza:** 75.37%
     -   **Interpretazione:** L'accuratezza bassa indica che il modello non è in grado di catturare efficacemente le relazioni tra le variabili nel dataset. L'assunzione di indipendenza tra le feature potrebbe non essere valida in questo contesto.
 2.  **Percettrone**
 

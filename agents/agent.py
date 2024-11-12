@@ -34,7 +34,8 @@ class Agent(nn.Module, ABC):
                 total_samples += inputs.size(0)
             average_loss = running_loss / total_samples
             epoch_losses.append(average_loss)
-            print(f"Epoch {epoch+1}, Loss: {average_loss:.4f}")
+            if epoch % 10 == 0 or epoch == epochs - 1:
+                print(f"Epoch {epoch+1}, Loss: {average_loss:.4f}")
         return epoch_losses
 
     def evaluate(self, test_loader):

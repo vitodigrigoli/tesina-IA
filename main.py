@@ -72,10 +72,19 @@ test_loader = DataLoader(test_dataset, batch_size=32)
 
 # Inizializzazione e addestramento dei modelli
 print("\n=================== Naive Bayes ===================")
-# 1. Naive Bayes
+# 1. Naive Bayes con bnlearn
 print("Addestramento del modello Naive Bayes...")
-naive_bayes = NaiveBayesAgent(num_features=X_train.shape[1], num_classes=len(np.unique(y_train_encoded)))
-naive_bayes.fit(X_train_tensor, y_train_tensor)
+# Combina le feature e il target per il training
+train_data_nb = features_train.copy()
+train_data_nb['HDA'] = target_train
+
+# Crea una lista dei nomi delle feature
+feature_names = features_train.columns.tolist()
+target_variable = 'HDA'
+
+# Inizializza e addestra il modello Naive Bayes
+naive_bayes = NaiveBayesAgent(target_variable=target_variable, feature_names=feature_names)
+naive_bayes.train(train_data_nb)
 print("Addestramento completato.")
 
 # 2. Percettrone
@@ -85,7 +94,7 @@ perceptron = PerceptronAgent(input_size=X_train.shape[1], num_classes=len(np.uni
 perceptron.to(device)
 optimizer_perceptron = torch.optim.SGD(perceptron.parameters(), lr=0.01, weight_decay=1e-4)
 criterion = torch.nn.CrossEntropyLoss()
-perceptron_losses = perceptron.train_model(train_loader, criterion, optimizer_perceptron, epochs=10)
+perceptron_losses = perceptron.train_model(train_loader, criterion, optimizer_perceptron, epochs=100)
 print("Addestramento completato.")
 
 # 3. Rete Neurale (MLP)
@@ -94,7 +103,7 @@ print("Addestramento del modello MLP...")
 mlp = MLPAgent(input_size=X_train.shape[1], hidden_size=64, num_classes=len(np.unique(y_train_encoded)))
 mlp.to(device)
 optimizer_mlp = torch.optim.Adam(mlp.parameters(), lr=0.001)
-mlp_losses = mlp.train_model(train_loader, criterion, optimizer_mlp, epochs=10)
+mlp_losses = mlp.train_model(train_loader, criterion, optimizer_mlp, epochs=100)
 print("Addestramento completato.")
 
 # 4. Rete Bayesiana con bnlearn
@@ -125,7 +134,14 @@ print("Addestramento completato.")
 print("\n=================== Valutazione dei Modelli ===================")
 # Naive Bayes
 print("\nValutazione del modello Naive Bayes...")
-accuracy_nb = naive_bayes.evaluate(X_test_tensor, y_test_tensor)
+# Prepara il test set per Naive Bayes
+X_test_nb = features_test.copy()
+y_test_nb = target_test.copy()
+# Assicurati che tutte le colonne siano di tipo 'category'
+for col in X_test_nb.columns:
+    X_test_nb[col] = X_test_nb[col].astype('category')
+# Valuta il modello
+accuracy_nb, y_pred_nb = naive_bayes.evaluate(X_test_nb, y_test_nb)
 print(f"Accuratezza del modello Naive Bayes: {accuracy_nb:.4f}")
 
 # Percettrone
